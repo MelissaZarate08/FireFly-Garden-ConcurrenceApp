@@ -22,7 +22,7 @@ const (
 //configuración de luciérnagas
 const (
 	MaxFireflies           = 100
-	InitialFireflyCount    = 15                
+	InitialFireflyCount    = 15              
 	FireflySpawnInterval   = time.Second * 2
 	FireflySize            = 8.0
 	FireflySpeed           = 1.5

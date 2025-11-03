@@ -4,7 +4,6 @@ import (
 	"image/color"
 )
 
-// LerpColor interpola entre dos colores según t (0-1)
 func LerpColor(c1, c2 [4]uint8, t float64) color.RGBA {
 	t = Clamp(t, 0, 1)
 	
@@ -16,17 +15,14 @@ func LerpColor(c1, c2 [4]uint8, t float64) color.RGBA {
 	return color.RGBA{R: r, G: g, B: b, A: a}
 }
 
-// ArrayToRGBA convierte un array de 4 uint8 a color.RGBA
 func ArrayToRGBA(arr [4]uint8) color.RGBA {
 	return color.RGBA{R: arr[0], G: arr[1], B: arr[2], A: arr[3]}
 }
 
-// WithAlpha crea un nuevo color con alpha modificado
 func WithAlpha(c color.RGBA, alpha uint8) color.RGBA {
 	return color.RGBA{R: c.R, G: c.G, B: c.B, A: alpha}
 }
 
-// Brighten incrementa el brillo de un color por un factor (0-1)
 func Brighten(c color.RGBA, factor float64) color.RGBA {
 	factor = Clamp(factor, 0, 1)
 	

@@ -10,13 +10,11 @@ import (
 	"github.com/yourusername/firefly-garden/pkg/utils"
 )
 
-// Command representa comandos que se pueden enviar al manager
 type Command struct {
 	Type CommandType
 	Data interface{}
 }
 
-// CommandType define los tipos de comandos disponibles
 type CommandType int
 
 const (
@@ -26,8 +24,6 @@ const (
 	CommandUpdateWind
 )
 
-// FireflyManager es el gestor principal que implementa el patrón Productor
-// Crea y coordina todas las luciérnagas (goroutines)
 type FireflyManager struct {
 	fireflies      map[int]*core.Firefly
 	firefliesMux   sync.RWMutex
@@ -45,14 +41,12 @@ type FireflyManager struct {
 	attractionMux  sync.RWMutex
 }
 
-// NewFireflyManager crea un nuevo gestor de luciérnagas
 func NewFireflyManager() *FireflyManager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	aggregator := NewStateAggregator(config.StateChannelBuffer)
 	wind := core.NewWind()
 
-	// Worker pool con 4 workers para procesamiento paralelo
 	workerPool := NewWorkerPool(4, 100, 100)
 
 	return &FireflyManager{
@@ -68,12 +62,9 @@ func NewFireflyManager() *FireflyManager {
 	}
 }
 
-// Start inicia el manager y sus componentes
 func (fm *FireflyManager) Start() {
-	// Iniciar agregador de estados (Fan-in)
 	fm.aggregator.Start()
 
-	// Iniciar sistema de viento
 	fm.wg.Add(1)
 	go fm.wind.Run(fm.ctx)
 	go func() {
@@ -81,24 +72,19 @@ func (fm *FireflyManager) Start() {
 		fm.wg.Done()
 	}()
 
-	// Iniciar worker pool
 	fm.workerPool.Start()
 
-	// Iniciar loop de comandos
 	fm.wg.Add(1)
 	go fm.commandLoop()
 
-	// Iniciar spawner automático (si está habilitado)
 	if config.AutoSpawnEnabled {
 		fm.wg.Add(1)
 		go fm.autoSpawner()
 	}
 
-	// Spawner inicial
 	fm.spawnInitialFireflies()
 }
 
-// commandLoop procesa comandos recibidos
 func (fm *FireflyManager) commandLoop() {
 	defer fm.wg.Done()
 
@@ -113,7 +99,6 @@ func (fm *FireflyManager) commandLoop() {
 	}
 }
 
-// processCommand ejecuta un comando
 func (fm *FireflyManager) processCommand(cmd Command) {
 	switch cmd.Type {
 	case CommandSpawnFirefly:
@@ -132,17 +117,13 @@ func (fm *FireflyManager) processCommand(cmd Command) {
 		fm.clearAttractionPoint()
 
 	case CommandUpdateWind:
-		// El viento ya se actualiza automáticamente
 		fm.wind.CycleDirection()
 	}
 }
 
-// autoSpawner genera luciérnagas automáticamente (Patrón Productor)
-// Ahora rellena hasta ObjectiveCount en ráfagas, con mayor frecuencia si se está lejos del objetivo.
 func (fm *FireflyManager) autoSpawner() {
 	defer fm.wg.Done()
 
-	// Ticker más dinámico (spawn más frecuente si falta alcanzar objetivo)
 	ticker := time.NewTicker(config.FireflySpawnInterval / 2)
 	defer ticker.Stop()
 
@@ -153,7 +134,6 @@ func (fm *FireflyManager) autoSpawner() {
 
 		case <-ticker.C:
 			current := fm.GetFireflyCount()
-			// Si estamos por debajo del objetivo, spawn en ráfaga aleatoria
 			if current < config.ObjectiveCount {
 				missing := config.ObjectiveCount - current
 				toSpawn := config.SpawnBurstCount
@@ -165,14 +145,12 @@ func (fm *FireflyManager) autoSpawner() {
 					y := utils.RandomFloat(0, config.ScreenHeight)
 					fm.spawnFirefly(x, y)
 				}
-				// si estamos muy por debajo, spawn un poco más
 				if missing > config.SpawnBurstCount*2 {
 					x := utils.RandomFloat(0, config.ScreenWidth)
 					y := utils.RandomFloat(0, config.ScreenHeight)
 					fm.spawnFirefly(x, y)
 				}
 			} else {
-				// Ocasionalmente crear 1 para mantener dinámica
 				if utils.RandomFloat(0, 1) < 0.05 && fm.GetFireflyCount() < config.MaxFireflies {
 					x := utils.RandomFloat(0, config.ScreenWidth)
 					y := utils.RandomFloat(0, config.ScreenHeight)
@@ -183,7 +161,6 @@ func (fm *FireflyManager) autoSpawner() {
 	}
 }
 
-// autoSpawner simple fallback (no usado si config.AutoSpawnEnabled=false)
 func (fm *FireflyManager) autoSpawnerSimple() {
 	defer fm.wg.Done()
 	ticker := time.NewTicker(config.FireflySpawnInterval)
@@ -203,9 +180,7 @@ func (fm *FireflyManager) autoSpawnerSimple() {
 	}
 }
 
-// autoSpawner termina
 
-// spawnInitialFireflies crea las luciérnagas iniciales
 func (fm *FireflyManager) spawnInitialFireflies() {
 	for i := 0; i < config.InitialFireflyCount; i++ {
 		x := utils.RandomFloat(0, config.ScreenWidth)
@@ -214,7 +189,6 @@ func (fm *FireflyManager) spawnInitialFireflies() {
 	}
 }
 
-// spawnFirefly crea una nueva luciérnaga y lanza su goroutine
 func (fm *FireflyManager) spawnFirefly(x, y float64) {
 	fm.firefliesMux.Lock()
 
@@ -226,7 +200,6 @@ func (fm *FireflyManager) spawnFirefly(x, y float64) {
 
 	fm.firefliesMux.Unlock()
 
-	// Configurar referencias compartidas
 	firefly.SetWindForce(fm.wind.GetForcePointer())
 
 	fm.attractionMux.RLock()
@@ -235,10 +208,8 @@ func (fm *FireflyManager) spawnFirefly(x, y float64) {
 	}
 	fm.attractionMux.RUnlock()
 
-	// Obtener snapshot de faroles para esta luciérnaga
 	lanterns := fm.getLanternsSnapshot()
 
-	// Lanzar goroutine de la luciérnaga (Fan-out)
 	fm.wg.Add(1)
 	go func(ff *core.Firefly, lns []*core.Lantern) {
 		defer fm.wg.Done()
@@ -246,7 +217,6 @@ func (fm *FireflyManager) spawnFirefly(x, y float64) {
 	}(firefly, lanterns)
 }
 
-// SpawnBurst crea varias luciérnagas alrededor de una posición (útil para feedback inmediato)
 func (fm *FireflyManager) SpawnBurst(x, y float64, count int) {
 	fm.firefliesMux.Lock()
 	defer fm.firefliesMux.Unlock()
@@ -261,7 +231,6 @@ func (fm *FireflyManager) SpawnBurst(x, y float64, count int) {
 		fm.nextID++
 
 		firefly := core.NewFirefly(id, x+dx, y+dy)
-		// configurar referencias compartidas
 		firefly.SetWindForce(fm.wind.GetForcePointer())
 		if fm.attractionPt != nil {
 			firefly.SetAttractionPoint(fm.attractionPt)
@@ -269,7 +238,6 @@ func (fm *FireflyManager) SpawnBurst(x, y float64, count int) {
 
 		fm.fireflies[id] = firefly
 
-		// lanzar goroutine para la nueva luciérnaga
 		fm.wg.Add(1)
 		go func(ff *core.Firefly) {
 			defer fm.wg.Done()
@@ -278,13 +246,11 @@ func (fm *FireflyManager) SpawnBurst(x, y float64, count int) {
 	}
 }
 
-// setAttractionPoint establece un punto de atracción global
 func (fm *FireflyManager) setAttractionPoint(point *utils.Vector2D) {
 	fm.attractionMux.Lock()
 	fm.attractionPt = point
 	fm.attractionMux.Unlock()
 
-	// Actualizar todas las luciérnagas existentes
 	fm.firefliesMux.RLock()
 	defer fm.firefliesMux.RUnlock()
 
@@ -293,7 +259,6 @@ func (fm *FireflyManager) setAttractionPoint(point *utils.Vector2D) {
 	}
 }
 
-// clearAttractionPoint elimina el punto de atracción
 func (fm *FireflyManager) clearAttractionPoint() {
 	fm.attractionMux.Lock()
 	fm.attractionPt = nil
@@ -307,7 +272,6 @@ func (fm *FireflyManager) clearAttractionPoint() {
 	}
 }
 
-// AddLantern agrega un nuevo farol (genera ráfaga como feedback)
 func (fm *FireflyManager) AddLantern(x, y float64) bool {
 	fm.lanternsMux.Lock()
 	defer fm.lanternsMux.Unlock()
@@ -319,13 +283,11 @@ func (fm *FireflyManager) AddLantern(x, y float64) bool {
 	lantern := core.NewLantern(x, y)
 	fm.lanterns = append(fm.lanterns, lantern)
 
-	// Feedback inmediato: generar una pequeña ráfaga alrededor del farol
 	go fm.SpawnBurst(x, y, config.SpawnBurstCount)
 
 	return true
 }
 
-// RemoveLantern elimina el último farol añadido
 func (fm *FireflyManager) RemoveLantern() {
 	fm.lanternsMux.Lock()
 	defer fm.lanternsMux.Unlock()
@@ -335,7 +297,6 @@ func (fm *FireflyManager) RemoveLantern() {
 	}
 }
 
-// UpdateLanterns actualiza todos los faroles
 func (fm *FireflyManager) UpdateLanterns(dt float64) {
 	fm.lanternsMux.RLock()
 	defer fm.lanternsMux.RUnlock()
@@ -345,7 +306,6 @@ func (fm *FireflyManager) UpdateLanterns(dt float64) {
 	}
 }
 
-// getLanternsSnapshot retorna una copia thread-safe de los faroles
 func (fm *FireflyManager) getLanternsSnapshot() []*core.Lantern {
 	fm.lanternsMux.RLock()
 	defer fm.lanternsMux.RUnlock()
@@ -356,53 +316,41 @@ func (fm *FireflyManager) getLanternsSnapshot() []*core.Lantern {
 	return snapshot
 }
 
-// GetLanterns retorna los faroles para renderizado
 func (fm *FireflyManager) GetLanterns() []*core.Lantern {
 	return fm.getLanternsSnapshot()
 }
 
-// GetFireflyCount retorna el número actual de luciérnagas
 func (fm *FireflyManager) GetFireflyCount() int {
 	return fm.aggregator.GetCount()
 }
 
-// GetFireflyStates retorna un snapshot de todos los estados
 func (fm *FireflyManager) GetFireflyStates() []core.FireflyState {
 	return fm.aggregator.GetSnapshot()
 }
 
-// GetWind retorna el sistema de viento
 func (fm *FireflyManager) GetWind() *core.Wind {
 	return fm.wind
 }
 
-// GetCommandChannel retorna el canal de comandos
 func (fm *FireflyManager) GetCommandChannel() chan<- Command {
 	return fm.commandCh
 }
 
-// GetWorkerPool retorna el worker pool para procesamiento paralelo
 func (fm *FireflyManager) GetWorkerPool() *WorkerPool {
 	return fm.workerPool
 }
 
-// GetDroppedStates retorna la cantidad de estados descartados (por canales llenos)
 func (fm *FireflyManager) GetDroppedStates() uint64 {
 	return core.GetDroppedStates()
 }
 
-// Stop detiene el manager y todas sus goroutines de forma limpia
 func (fm *FireflyManager) Stop() {
-	// Cancelar contexto (señal de parada para todas las goroutines)
 	fm.cancel()
 
-	// Esperar a que todas las goroutines terminen
 	fm.wg.Wait()
 
-	// Detener componentes
 	fm.aggregator.Stop()
 	fm.workerPool.Stop()
 
-	// Cerrar canal de comandos
 	close(fm.commandCh)
 }

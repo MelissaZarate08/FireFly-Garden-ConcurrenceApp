@@ -12,17 +12,14 @@ import (
 )
 
 func main() {
-	// Configurar Ebiten
 	ebiten.SetWindowSize(config.ScreenWidth, config.ScreenHeight)
 	ebiten.SetWindowTitle("🌙 Jardín de Luciérnagas - Programación Concurrente")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetVsyncEnabled(true)
 	ebiten.SetTPS(config.TargetFPS)
 	
-	// Crear instancia del juego
 	game := render.NewGame()
 	
-	// Configurar manejo de señales para shutdown limpio
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	
@@ -33,7 +30,6 @@ func main() {
 		os.Exit(0)
 	}()
 	
-	// Mensaje de inicio
 	log.Println("===========================================")
 	log.Println("  🌙 JARDÍN DE LUCIÉRNAGAS")
 	log.Println("  Proyecto de Programación Concurrente")
@@ -62,12 +58,10 @@ func main() {
 	log.Println("Verifica ausencia de race conditions con: go run -race cmd/game/main.go")
 	log.Println()
 	
-	// Ejecutar el juego
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
 	
-	// Shutdown limpio
 	game.Shutdown()
 	log.Println("Juego cerrado correctamente. ¡Adiós!")
 }

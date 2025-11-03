@@ -5,22 +5,17 @@ import (
 	"sync"
 )
 
-// Job representa una tarea que será procesada por el worker pool
 type Job struct {
 	ID   int
 	Task func() interface{}
 }
 
-// Result representa el resultado de un trabajo procesado
 type Result struct {
 	JobID  int
 	Output interface{}
 	Error  error
 }
 
-// WorkerPool implementa el patrón Worker Pool
-// Múltiples workers consumen trabajos de un canal compartido
-// Útil para procesamiento paralelo de tareas (ej: cálculos de colisión, pathfinding)
 type WorkerPool struct {
 	workerCount int
 	jobsCh      chan Job
@@ -30,7 +25,6 @@ type WorkerPool struct {
 	wg          sync.WaitGroup
 }
 
-// NewWorkerPool crea un nuevo pool de workers
 func NewWorkerPool(workerCount, jobBufferSize, resultBufferSize int) *WorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
 	
@@ -43,7 +37,6 @@ func NewWorkerPool(workerCount, jobBufferSize, resultBufferSize int) *WorkerPool
 	}
 }
 
-// Start inicia todos los workers del pool
 func (wp *WorkerPool) Start() {
 	for i := 0; i < wp.workerCount; i++ {
 		wp.wg.Add(1)
@@ -51,7 +44,6 @@ func (wp *WorkerPool) Start() {
 	}
 }
 
-// worker es la goroutine que procesa trabajos
 func (wp *WorkerPool) worker(workerID int) {
 	defer wp.wg.Done()
 	
@@ -65,28 +57,23 @@ func (wp *WorkerPool) worker(workerID int) {
 				return
 			}
 			
-			// Procesar el trabajo
 			result := wp.processJob(job)
 			
-			// Enviar resultado (non-blocking)
 			select {
 			case wp.resultsCh <- result:
 			case <-wp.ctx.Done():
 				return
 			default:
-				// Si el canal de resultados está lleno, descartar
 			}
 		}
 	}
 }
 
-// processJob ejecuta la tarea del trabajo y maneja errores
 func (wp *WorkerPool) processJob(job Job) Result {
 	result := Result{
 		JobID: job.ID,
 	}
 	
-	// Ejecutar la tarea y capturar panics
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -100,8 +87,6 @@ func (wp *WorkerPool) processJob(job Job) Result {
 	return result
 }
 
-// Submit envía un trabajo al pool
-// Retorna false si el contexto fue cancelado
 func (wp *WorkerPool) Submit(job Job) bool {
 	select {
 	case <-wp.ctx.Done():
@@ -114,17 +99,14 @@ func (wp *WorkerPool) Submit(job Job) bool {
 	}
 }
 
-// GetJobsChannel retorna el canal de trabajos para envío directo
 func (wp *WorkerPool) GetJobsChannel() chan<- Job {
 	return wp.jobsCh
 }
 
-// GetResultsChannel retorna el canal de resultados para consumo
 func (wp *WorkerPool) GetResultsChannel() <-chan Result {
 	return wp.resultsCh
 }
 
-// Stop detiene el worker pool de forma limpia
 func (wp *WorkerPool) Stop() {
 	wp.cancel()
 	close(wp.jobsCh)
@@ -132,10 +114,8 @@ func (wp *WorkerPool) Stop() {
 	close(wp.resultsCh)
 }
 
-// WaitForCompletion espera a que todos los trabajos actuales se completen
-// Nota: No cierra el pool, solo espera a que el canal de trabajos se vacíe
+
 func (wp *WorkerPool) WaitForCompletion() {
-	// Enviar trabajos de señalización para confirmar que todos fueron procesados
 	barrierCount := wp.workerCount
 	barrierCh := make(chan struct{}, barrierCount)
 	
@@ -149,7 +129,6 @@ func (wp *WorkerPool) WaitForCompletion() {
 		})
 	}
 	
-	// Esperar a que todos los workers procesen la barrera
 	for i := 0; i < barrierCount; i++ {
 		<-barrierCh
 	}
